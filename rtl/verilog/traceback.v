@@ -229,8 +229,8 @@ assign selectmini_flag_temp=(dummy_cnt==`DUMMY_BLOCK_NUM&&wr_adr[`OUT_NUM_RADIX-
 //assign selectmini_flag=traceback_start||selectmini_flag_temp;
 assign selectmini_flag=valid_in;
 assign traceback_start=(dummy_cnt==`DUMMY_BLOCK_NUM&&wr_adr[`OUT_NUM_RADIX-1:0]==(`OUT_NUM-1));
-//assign rd_en=state_tracebuf_merge_on?0:(traceback_start? 0: (wr_adr[`OUT_NUM_RADIX-1:0]==(`LEN-1))? 0: During_traback);
-assign rd_en=(traceback_start? 0: (wr_adr[`OUT_NUM_RADIX-1:0]==(`LEN-1))? 0: During_traback);
+assign rd_en=state_tracebuf_merge_on?0:(traceback_start? 0: (wr_adr[`OUT_NUM_RADIX-1:0]==(`LEN-1))? 0: During_traback);
+//assign rd_en=(traceback_start? 0: (wr_adr[`OUT_NUM_RADIX-1:0]==(`LEN-1))? 0: During_traback);
 assign next_rd_adr_byte=next_state[`W+`U-1:`W];
 assign wire_rd_adr_col = (valid_in&&traceback_start)? wr_adr[`RAM_ADR_WIDTH-1:`U]: rd_adr_col;
 
