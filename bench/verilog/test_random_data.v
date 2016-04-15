@@ -284,7 +284,7 @@ begin
 		
 		if (total_count == `CODE_LEN)
 			begin
-				$display("Info: T0tal: %d, Error: %d, BER: %f", total_count,dec_out_error,dec_out_error/total_count);
+				$display("DTBL Info: Total: %d, Error: %d, BER: %f", total_count,dec_out_error,dec_out_error/total_count);
 				`END_COMMAND;
 			end
 		

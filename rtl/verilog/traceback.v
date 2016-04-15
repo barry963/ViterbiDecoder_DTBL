@@ -208,6 +208,7 @@ reg[`W+`V+`U-1:0] state;
 wire[`RAM_ADR_WIDTH-`U-1:0] dec_rd_adr_col;
 wire[`V-1:0] rd_dec0, rd_dec1, rd_dec2, rd_dec3, rd_dec4, rd_dec5, rd_dec6, rd_dec7, rd_dec8, rd_dec9, rd_dec10, rd_dec11, rd_dec12, rd_dec13, rd_dec14, rd_dec15, rd_dec16, rd_dec17, rd_dec18, rd_dec19, rd_dec20, rd_dec21, rd_dec22, rd_dec23, rd_dec24, rd_dec25, rd_dec26, rd_dec27, rd_dec28, rd_dec29, rd_dec30, rd_dec31;            
 wire[`W+`V+`U-1:0] next_state;
+reg[`W+`V+`U-1:0] next_state_dl;
 reg[`V-1:0] dec;
 wire[`U-1:0] rd_adr_byte;		// u cannot be less than 1
 wire[`W+`V-1:0] rd_bit;
@@ -225,9 +226,11 @@ assign rd_adr=rd_adr_temp;
 wire traceback_start, selectmini_flag, selectmini_flag_temp;
 
 assign selectmini_flag_temp=(dummy_cnt==`DUMMY_BLOCK_NUM&&wr_adr[`OUT_NUM_RADIX-1:0]==(`OUT_NUM-2));
-assign selectmini_flag=traceback_start||selectmini_flag_temp;
+//assign selectmini_flag=traceback_start||selectmini_flag_temp;
+assign selectmini_flag=valid_in;
 assign traceback_start=(dummy_cnt==`DUMMY_BLOCK_NUM&&wr_adr[`OUT_NUM_RADIX-1:0]==(`OUT_NUM-1));
-assign rd_en=traceback_start? 0: (wr_adr[`OUT_NUM_RADIX-1:0]==(`LEN-1))? 0: During_traback;
+//assign rd_en=state_tracebuf_merge_on?0:(traceback_start? 0: (wr_adr[`OUT_NUM_RADIX-1:0]==(`LEN-1))? 0: During_traback);
+assign rd_en=(traceback_start? 0: (wr_adr[`OUT_NUM_RADIX-1:0]==(`LEN-1))? 0: During_traback);
 assign next_rd_adr_byte=next_state[`W+`U-1:`W];
 assign wire_rd_adr_col = (valid_in&&traceback_start)? wr_adr[`RAM_ADR_WIDTH-1:`U]: rd_adr_col;
 
@@ -252,9 +255,28 @@ reg [`SM_Width-1:0]  min_sm_reg_slice0;
 reg [5:0]  min_sm_index_reg_slice0;
 
 //assign next_state = (wire_rd_adr_col==rd_adr_col)&&rd_en?  {state[`W+`U+`V-1:`V], dec}:min_sm_index;
-assign next_state=(traceback_start)?min_sm_index:{state[`W+`U+`V-1:`V], dec};
+//assign next_state=state_tracebuf_merge_on?(state_buffer[state_tracebuf_pos]):((traceback_start)?min_sm_index:{state[`W+`U+`V-1:`V], dec});
+assign next_state=(traceback_start)?min_sm_index:(state_tracebuf_merge_on?(state_buffer[state_tracebuf_pos]):({state[`W+`U+`V-1:`V], dec}));
 
-assign min_sm_index= (traceback_start)?((min_sm_reg_slice0[7]^min_sm_slice[7]^((min_sm_reg_slice0[6:0]<=min_sm_slice[6:0])))?min_sm_index_reg_slice0:min_sm_index_slice):0;
+assign min_sm_index= (wr_en&&wr_adr[0]&&(traceback_start||state_pred_on))?((min_sm_reg_slice0[7]^min_sm_slice[7]^((min_sm_reg_slice0[6:0]<=min_sm_slice[6:0])))?min_sm_index_reg_slice0:min_sm_index_slice):'bx;
+
+reg [`W+`V+`U-1:0] state_buffer[`LEN+`LEN-1:0];
+reg [6:0] state_buf_pre_length;
+reg [6:0] state_buf_pre_start;
+reg state_pred_on;
+wire [6:0] state_buf_pre_pos;
+wire [6:0] state_buf_pre_nextpos;
+assign state_buf_pre_pos=(state_buf_pre_start+state_buf_pre_length-1);
+assign state_buf_pre_nextpos=state_buf_pre_pos+1;
+
+reg [6:0] state_tracebuf_length;
+reg [6:0] state_tracebuf_current_length;
+reg [6:0] state_tracebuf_start;
+
+reg state_tracebuf_on;
+wire [6:0] state_tracebuf_pos;
+assign state_tracebuf_pos=(state_tracebuf_start+state_tracebuf_current_length-2);
+reg state_tracebuf_merge_on;
 
 //wire [4:0] sm_list_index [15:0]={0,32,1,33,2,33,3,34,4,35,5,36,6,37,7,38,8,39,9,40,10,41,11,42,12,43,13,44,14,45,15,46};
 
@@ -367,7 +389,7 @@ begin
 	else
 		begin
 			rd_en_dl<=rd_en;
-			if(wr_en&&rd_en&&wr_adr==rd_adr)
+			if(wr_en&&wr_adr==rd_adr)
 				begin
 					wr_rd_simu<=1;
 					wr_data_dl<=wr_data;
@@ -397,6 +419,13 @@ begin
 			Is_not_first_3blocks<=0;
 			During_traback<=0;
 			During_send_data<=0;
+			
+			state_buffer[0]<=0;
+			state_buf_pre_length<=0;
+			state_buf_pre_start<=0;
+			state_pred_on<=1;
+			state_tracebuf_start<=0;
+			state_tracebuf_merge_on<=0;
 		end
     else if (srst)
 		begin
@@ -412,6 +441,13 @@ begin
 			Is_not_first_3blocks <= 0;
 			During_traback <= 0;
 			During_send_data <= 0;
+			
+			state_buffer[0]<=0;
+			state_buf_pre_length<=0;
+			state_buf_pre_start<=0;
+			state_pred_on<=1;
+			state_tracebuf_start<=0;
+			state_tracebuf_merge_on<=0;
 		end
     else if(valid_in)
 		begin
@@ -424,6 +460,24 @@ begin
 			else
 				wr_adr<=wr_adr+1; 
 			
+			if(wr_en&&wr_adr[0]&&state_pred_on)
+			begin	
+				if(!Is_not_first_3blocks&&state_buf_pre_length==0)//first element of a frame
+					begin
+						state_buffer[state_buf_pre_nextpos]<=0;
+						state_buf_pre_length<=state_buf_pre_length+1;
+					end
+				else if((state_buffer[state_buf_pre_pos][5:1]==min_sm_index[4:0]))
+					begin
+							state_buffer[state_buf_pre_nextpos]<=min_sm_index;
+							state_buf_pre_length<=state_buf_pre_length+1;
+					end
+				else
+					begin
+						state_pred_on<=0;
+					end
+			end	
+
 			// if during trace back
 			if(During_traback&&Is_not_first_3blocks)   
 				begin
@@ -432,6 +486,28 @@ begin
 					filo_in<=rd_bit[`V-1:0];
 					rd_adr_col<=dec_rd_adr_col;
 					state<={next_state[`W+`U-1:0], next_state[`W+`U+`V-1:`W+`U]};
+					
+					
+					state_tracebuf_current_length<=state_tracebuf_current_length-1;
+					//state_tracebuf_start<=state_tracebuf_start-1;
+					if((state_tracebuf_on||traceback_start)&&!state_tracebuf_merge_on)
+					begin
+						if((state_tracebuf_current_length<=state_tracebuf_length)&&(state_buffer[state_tracebuf_pos]==next_state))
+						begin
+							state_tracebuf_merge_on<=1;						
+						end	
+						else
+						begin
+							if(state_tracebuf_current_length==`LEN)//first element
+							begin
+								state_buffer[state_tracebuf_pos+1]=next_state_dl;
+							end
+							
+							state_buffer[state_tracebuf_pos]=next_state;
+						end
+					end
+	
+					
 					// scratch
 					// {rd_adr_byte, rd_bit}<={rd_adr_byte[`U-`V-1:0], rd_bit[`W+`V-1:`V], dec, rd_adr_byte[`U-1:`U-`V]};       
 					// {rd_adr_byte, rd_bit}<={rd_bit[`W+`V-1:`V], dec, rd_adr_byte[`U-1:`U-`V]};    
@@ -445,6 +521,7 @@ begin
 					// Trace back and send out dec to filo
 					en_filo_in<=1;
 					During_send_data<=1;
+					state_tracebuf_on<=0;
 				end
 			// else if have send out all data, stop send data
 			else if((wr_adr[`OUT_NUM_RADIX-1:0]==`LEN-1) && Is_not_first_3blocks)
@@ -466,6 +543,22 @@ begin
 							During_traback<=1;
 							rd_adr_col<=wr_adr[`RAM_ADR_WIDTH-1:`U]-1;
 							state<={next_state[`W+`U-1:0], next_state[`W+`U+`V-1:`W+`U]};    //{(`U-`V)'b0, `W'b0, `V'b0, `V'b0};    ////////////////////
+							
+							
+							state_pred_on<=1;
+							state_buf_pre_start<=Is_not_first_3blocks?(state_buf_pre_start+`DEC_NUM):(state_buf_pre_start+`LEN);
+							state_buf_pre_length<=0;
+							
+							
+							state_tracebuf_length<=Is_not_first_3blocks?(state_buf_pre_length+`LEN-`DEC_NUM):state_buf_pre_length;
+							
+							state_tracebuf_current_length<=`LEN;
+							state_tracebuf_start<=Is_not_first_3blocks?(state_tracebuf_start+`DEC_NUM):0;
+							state_tracebuf_on<=1;
+							next_state_dl<=next_state;
+							
+							
+							state_tracebuf_merge_on<=0;
 							//min_sm_reg<=min_sm;
 							//min_sm_index_reg<=min_sm_index;
 							//en_com_in=1;
