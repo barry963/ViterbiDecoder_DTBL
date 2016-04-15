@@ -226,8 +226,8 @@ assign rd_adr=rd_adr_temp;
 wire traceback_start, selectmini_flag, selectmini_flag_temp;
 
 assign selectmini_flag_temp=(dummy_cnt==`DUMMY_BLOCK_NUM&&wr_adr[`OUT_NUM_RADIX-1:0]==(`OUT_NUM-2));
-//assign selectmini_flag=traceback_start||selectmini_flag_temp;
-assign selectmini_flag=valid_in;
+assign selectmini_flag=traceback_start||selectmini_flag_temp||state_pred_on;
+
 assign traceback_start=(dummy_cnt==`DUMMY_BLOCK_NUM&&wr_adr[`OUT_NUM_RADIX-1:0]==(`OUT_NUM-1));
 assign rd_en=state_tracebuf_merge_on?0:(traceback_start? 0: (wr_adr[`OUT_NUM_RADIX-1:0]==(`LEN-1))? 0: During_traback);
 //assign rd_en=(traceback_start? 0: (wr_adr[`OUT_NUM_RADIX-1:0]==(`LEN-1))? 0: During_traback);
@@ -423,7 +423,7 @@ begin
 			state_buffer[0]<=0;
 			state_buf_pre_length<=0;
 			state_buf_pre_start<=0;
-			state_pred_on<=1;
+			state_pred_on<=0;
 			state_tracebuf_start<=0;
 			state_tracebuf_merge_on<=0;
 		end
@@ -445,7 +445,7 @@ begin
 			state_buffer[0]<=0;
 			state_buf_pre_length<=0;
 			state_buf_pre_start<=0;
-			state_pred_on<=1;
+			state_pred_on<=0;
 			state_tracebuf_start<=0;
 			state_tracebuf_merge_on<=0;
 		end
